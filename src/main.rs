@@ -3,15 +3,15 @@ use std::fs::File;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use zip::{ZipWriter, CompressionMethod, write::FileOptions};
-use sha2::{Sha256, Digest};
 use rusqlite::{Connection, Result};
+use uuid::Uuid;
 extern crate cronjob;
 use cronjob::CronJob;
 
 struct Backup {
     id: i32,
     path: String,
-    hash: String,
+    uuid: String,
     created_at: String
 }
 
@@ -26,7 +26,7 @@ fn main() {
         "CREATE TABLE IF NOT EXISTS backups (
             id INTEGER PRIMARY KEY,
             path TEXT NOT NULL,
-            hash TEXT NOT NULL,
+            uuid TEXT NOT NULL,
             created_at TEXT NOT NULL
         )",
         ()
@@ -114,7 +114,7 @@ fn delete_old_zips() {
         Ok(Backup {
             id: row.get(0).unwrap(),
             path: row.get(1).unwrap(),
-            hash: row.get(2).unwrap(),
+            uuid: row.get(2).unwrap(),
             created_at: row.get(3).unwrap()
         })
     }).unwrap();
@@ -132,7 +132,7 @@ fn delete_old_zips() {
     connection.close().unwrap();
 
     for backup in backups {
-        let zip_name = format!("{}/{}-{}.zip", backup.path, backup.created_at, backup.hash);
+        let zip_name = format!("{}/{}-{}.zip", backup.path, backup.created_at, backup.uuid);
         let zip_file_path = Path::new(&zip_name);
         std::fs::remove_file(zip_file_path).unwrap();
     }
@@ -140,25 +140,23 @@ fn delete_old_zips() {
 }
 
 fn zip_directory(input: String, output: String) -> Result<(), Box<dyn Error>> {
-    // Create a new file format: date-hash.zip
+    // Create a new file format: date-uuid.zip
     let date = chrono::Local::now();
-    // take input path and convert to sha256 hash
+    // take input path and convert to sha256 uuid
     let input_path = Path::new(&input).canonicalize()?;
-    let input_name = input_path.to_string_lossy();
-    let mut hasher = Sha256::new();
-    hasher.update(input_name.as_bytes());
-    let input_name_hash = format!("{:x}", hasher.finalize());
 
-    // Stores hash in db and relate to absolute path
+    let input_uuid = Uuid::new_v4();
+
+    // Stores uuid in db and relate to absolute path
     let connection = Connection::open("db.sqlite").unwrap();
     
     connection.execute(
-        "INSERT INTO backups (path, hash, created_at) VALUES (?, ?, ?)",
-        &[input_path.to_str().unwrap(), input_name_hash.as_str(), date.to_string().as_str()]
+        "INSERT INTO backups (path, uuid, created_at) VALUES (?, ?, ?)",
+        &[input_path.to_str().unwrap(), &input_uuid.to_string(), date.to_string().as_str()]
     ).unwrap();
 
     connection.close().unwrap();
-    let zip_name = format!("{}/{}-{}.zip", output, date.timestamp(), input_name_hash);
+    let zip_name = format!("{}/{}-{}.zip", output, date.timestamp(), input_uuid);
     println!("Creating zip file: {}", zip_name);
     let zip_file_path = Path::new(&zip_name);
     let zip_file = File::create(&zip_file_path).unwrap();
