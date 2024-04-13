@@ -5,8 +5,10 @@ use std::path::{Path, PathBuf};
 use zip::{ZipWriter, CompressionMethod, write::FileOptions};
 use rusqlite::{Connection, Result};
 use uuid::Uuid;
+use serde::{Deserialize};
+use serde_json;
 extern crate cronjob;
-use cronjob::CronJob;
+// use cronjob::CronJob;
 
 struct Backup {
     id: i32,
@@ -15,9 +17,16 @@ struct Backup {
     created_at: String
 }
 
+#[derive(Deserialize)]
 struct Directory {
+    name: String,
     input: String,
     output: String
+}
+
+#[derive(Deserialize)]
+struct Config {
+    directories: Vec<Directory>
 }
 
 fn main() {
@@ -32,14 +41,6 @@ fn main() {
         ()
     ).unwrap();
 
-    connection.execute(
-        "CREATE TABLE IF NOT EXISTS directories (
-            id INTEGER PRIMARY KEY,
-            input TEXT NOT NULL,
-            output TEXT NOT NULL
-        )",
-        ()
-    ).unwrap();
     connection.close().unwrap();
 
     // add_new_directory("./content", "./backups");
@@ -62,23 +63,22 @@ fn main() {
     backup();
 }
 
+fn parse_config() -> Config {
+    let mut config_file = File::open("config.json").unwrap();
+    let mut buffer = String::new();
+    config_file.read_to_string(&mut buffer).unwrap();
+    let config_text = buffer.clone();
+    let config: Config = serde_json::from_str(&config_text.as_str()).unwrap();
+
+    config
+}
+
 fn backup() {
-    let connection = Connection::open("db.sqlite").unwrap();
-    let mut statement = connection.prepare("SELECT * FROM directories").unwrap();
-    let directories_result = statement.query_map([], |row| {
-        Ok(Directory {
-            input: row.get(1).unwrap(),
-            output: row.get(2).unwrap()
-        })
-    }).unwrap();
+    // Load directories from config
+    let config = parse_config();
 
-    let directories: Result<Vec<_>, _> = directories_result.collect();
-    let directories = directories.unwrap();
-
-    statement.finalize().unwrap();
-    connection.close().unwrap();
-
-    for directory in directories {
+    for directory in config.directories {
+        println!("Zipping: {}", directory.name);
         zip_directory(directory.input, directory.output).unwrap();
     }
 }
@@ -190,7 +190,7 @@ fn zip_directory(input: String, output: String) -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-// Recursivley walk through directory and return all files
+// Recursively walk through directory and return all files
 fn walk_dir(input: String) -> Vec<PathBuf> {
     let mut files_to_zip = Vec::new();
     let path = Path::new(&input);

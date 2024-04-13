@@ -1,0 +1,9 @@
+{
+  "directories": [
+    {
+      "name": "content",
+      "input": "/home/cheekysim/code/cheekybackup/content",
+      "output": "/home/cheekysim/code/cheekybackup/backups"
+    }
+  ]
+}
