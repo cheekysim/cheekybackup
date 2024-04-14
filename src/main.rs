@@ -10,6 +10,7 @@ use serde_json;
 extern crate cronjob;
 // use cronjob::CronJob;
 
+
 struct Backup {
     id: i32,
     path: String,
@@ -42,8 +43,6 @@ fn main() {
     ).unwrap();
 
     connection.close().unwrap();
-
-    // add_new_directory("./content", "./backups");
 
     // let mut clean = CronJob::new("Delete Old Files", delete_old_zips);
     // // Run once an hour
@@ -82,28 +81,6 @@ fn backup() {
         zip_directory(directory.input, directory.output).unwrap();
     }
 }
-
-fn add_new_directory(input: &str, output: &str) {
-    let input_path = Path::new(input);
-    if !input_path.exists() {
-        panic!("Path does not exist");
-    }
-    let input_absolute_path = input_path.canonicalize().unwrap();
-    let input_absolute_string = input_absolute_path.to_string_lossy();
-
-    let output_path = Path::new(output);
-    let output_absolute_path = output_path.canonicalize().unwrap();
-    let output_absolute_string = output_absolute_path.to_string_lossy();
-
-
-    let connection = Connection::open("db.sqlite").unwrap();
-    connection.execute(
-        "INSERT INTO directories (input, output) VALUES (?, ?)",
-        &[&input_absolute_string, &output_absolute_string]
-    ).unwrap();
-    connection.close().unwrap();
-}
-
 fn delete_old_zips() {
     // Delete zip files older than 30 days
     let connection = Connection::open("db.sqlite").unwrap();
@@ -125,7 +102,7 @@ fn delete_old_zips() {
     statement.finalize().unwrap();
 
     connection.execute(
-        "DELETE FROM backups WHERE created_at < date('now', '30 days')",
+        "DELETE FROM backups WHERE created_at < date('now', '-30 days')",
         ()
     ).unwrap();
 
