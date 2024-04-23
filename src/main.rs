@@ -7,8 +7,7 @@ use rusqlite::{Connection, Result};
 use uuid::Uuid;
 use serde::{Deserialize};
 use serde_json;
-extern crate cronjob;
-// use cronjob::CronJob;
+use cron::Schedule;
 
 
 struct Backup {
@@ -43,23 +42,11 @@ fn main() {
     ).unwrap();
 
     connection.close().unwrap();
-
-    // let mut clean = CronJob::new("Delete Old Files", delete_old_zips);
-    // // Run once an hour
-    // clean.minutes("0");
-    // clean.hours("*");
-
-    // CronJob::start_job_threaded(clean);
-
-    // let mut backup_cronjob = CronJob::new("Backup Directories", backup);
-    // // Run once a day
-    // backup_cronjob.minutes("0");
-    // backup_cronjob.hours("0");
-    // backup_cronjob.day_of_month("*");
-
-    // CronJob::start_job_threaded(backup_cronjob);
     delete_old_zips();
     backup();
+    let expression = "0 0 0 *";
+    let scheduler = Schedule::from_str(expression).unwrap();
+    for datetime in
 }
 
 fn parse_config() -> Config {
