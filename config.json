@@ -4,11 +4,6 @@
       "name": "content",
       "input": "/home/cheekysim/code/cheekybackup/content",
       "output": "/home/cheekysim/code/cheekybackup/backups"
-    },
-    {
-      "name": "test",
-      "input": "/home/cheekysim/code/cms",
-      "output": "/home/cheekysim/cms-backup"
     }
   ]
 }

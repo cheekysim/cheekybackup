@@ -2,12 +2,14 @@ use std::error::Error;
 use std::fs::File;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 use zip::{ZipWriter, CompressionMethod, write::FileOptions};
 use rusqlite::{Connection, Result};
 use uuid::Uuid;
-use serde::{Deserialize};
+use serde::Deserialize;
 use serde_json;
-use cron::Schedule;
+use tokio_cron_scheduler::{Job, JobScheduler, JobSchedulerError};
+use tokio;
 
 
 struct Backup {
@@ -29,24 +31,26 @@ struct Config {
     directories: Vec<Directory>
 }
 
-fn main() {
-    let connection = Connection::open("db.sqlite").unwrap();
-    connection.execute(
-        "CREATE TABLE IF NOT EXISTS backups (
-            id INTEGER PRIMARY KEY,
-            path TEXT NOT NULL,
-            uuid TEXT NOT NULL,
-            created_at TEXT NOT NULL
-        )",
-        ()
-    ).unwrap();
+#[tokio::main]
+async fn main() -> Result<(), JobSchedulerError> {
+    let sched = JobScheduler::new().await?;
 
-    connection.close().unwrap();
-    delete_old_zips();
-    backup();
-    let expression = "0 0 0 *";
-    let scheduler = Schedule::from_str(expression).unwrap();
-    for datetime in
+    // Add basic cron job
+    sched.add(
+        Job::new("0 0 * * * *", |_uuid, _l| {
+            backup();
+            delete_old_zips();
+            println!("Backup completed");
+        })?
+    ).await?;
+
+    sched.start().await?;
+
+    loop {
+        tokio::time::sleep(Duration::from_secs(60)).await;
+    }
+
+    Ok(())
 }
 
 fn parse_config() -> Config {
