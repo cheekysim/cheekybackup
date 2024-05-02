@@ -22,6 +22,9 @@ struct Backup {
 #[derive(Deserialize)]
 struct Directory {
     name: String,
+    cron: String,
+    max_backups: i32,
+    max_age: u64,
     input: String,
     output: String
 }
@@ -32,17 +35,22 @@ struct Config {
 }
 
 #[tokio::main]
+#[allow(unreachable_code)] // Intended to run indefinitely
 async fn main() -> Result<(), JobSchedulerError> {
     let sched = JobScheduler::new().await?;
 
-    // Add basic cron job
-    sched.add(
-        Job::new("0 0 * * * *", |_uuid, _l| {
-            backup();
-            delete_old_zips();
-            println!("Backup completed");
-        })?
-    ).await?;
+    let config = parse_config();
+
+    // Create a job for every entry in the config
+    for directory in config.directories {
+        sched.add(
+            Job::new(directory.cron.as_str(), move |_uuid, _l| {
+                zip_directory(directory.input.clone(), directory.output.clone()).unwrap();
+                delete_old_zips(directory.max_age, directory.max_backups);
+                println!("Backup of {} completed", directory.name);
+            })?
+        ).await?;
+    }
 
     sched.start().await?;
 
@@ -63,20 +71,11 @@ fn parse_config() -> Config {
     config
 }
 
-fn backup() {
-    // Load directories from config
-    let config = parse_config();
-
-    for directory in config.directories {
-        println!("Zipping: {}", directory.name);
-        zip_directory(directory.input, directory.output).unwrap();
-    }
-}
-fn delete_old_zips() {
+fn delete_old_zips(max_age: u64, max_backups: i32) {
     // Delete zip files older than 30 days
     let connection = Connection::open("db.sqlite").unwrap();
     let mut statement = connection.prepare(
-        "SELECT * FROM backups WHERE created_at < date('now', '-30 days')",
+        &format!("SELECT * FROM backups WHERE created_at < date('now', '-{} milliseconds')", max_age),
     ).unwrap();
     let backups_result = statement.query_map([], |row| {
         Ok(Backup {

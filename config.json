@@ -2,6 +2,9 @@
   "directories": [
     {
       "name": "content",
+      "cron": "0 0 * * *",
+      "max_backups": 7,
+      "max_age": 604800000,
       "input": "/home/cheekysim/code/cheekybackup/content",
       "output": "/home/cheekysim/code/cheekybackup/backups"
     }
